@@ -349,7 +349,7 @@ if __name__ == '__main__':
                 print('Training Loss : {}'.format(training_loss))
                 print('Train Accuracy: {:.2f}%'.format(100*train_accuracy[-1]))
                 print("Test Accuracy: {:.2f}%\n".format(100*test_acc))
-                log_experiment(writer, training_loss, 100*train_accuracy[-1], 100*test_acc)
+                log_experiment(writer, training_loss, 100*train_accuracy[-1], 100*test_acc, epoch)
         
         print(' \n Results after {} global rounds of training:'.format(epoch+1))
         print("|---- Final Test Accuracy: {:.2f}%".format(100*test_accuracy[-1]))

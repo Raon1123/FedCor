@@ -23,7 +23,7 @@ def get_writter(args):
     return writer
 
 
-def log_experiment(writer, train_loss, train_acc, test_acc):
-    writer.add_scalar('Loss/Train', train_loss)
-    writer.add_scalar('Acc/Train', train_acc)
-    writer.add_scalar('Acc/Test', test_acc)
+def log_experiment(writer, train_loss, train_acc, test_acc, epoch):
+    writer.add_scalar('Loss/Train', train_loss, epoch)
+    writer.add_scalar('Acc/Train', train_acc, epoch)
+    writer.add_scalar('Acc/Test', test_acc, epoch)
