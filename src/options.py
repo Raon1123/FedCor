@@ -135,6 +135,8 @@ def args_parser():
                         help='random seed')
     parser.add_argument('--target_accuracy',type=float,default=None,
                         help='stop at a specified test accuracy')
+
+    parser.add_argument('--prefix', type=str, default='')
   
     
     args = parser.parse_args()

@@ -13,9 +13,6 @@ from collections import Counter
 import numpy as np
 from tqdm import tqdm
 
-# import matplotlib.pyplot as plt
-
-
 def ce_criterion(pred, target, *args):
     ce_loss = F.cross_entropy(pred, target)
     return ce_loss, float(ce_loss)
@@ -23,7 +20,6 @@ def ce_criterion(pred, target, *args):
 class DatasetSplit(Dataset):
     """An abstract Dataset class wrapped around Pytorch Dataset class.
     """
-
     def __init__(self, dataset, idxs):
         self.dataset = dataset
         self.idxs = [int(i) for i in idxs]
@@ -103,7 +99,6 @@ class LocalUpdate(object):
                 print('| Global Round : {} | Local Epoch : {} |\tLoss: {:.4f}\tCE_Loss: {:.4f}\tProxy_Loss: {:.4f}'.format(
                         self.global_round, iter, total_loss.item(),celoss,PLoss if self.args.FedProx else 0.0))
                 # self.logger.add_scalar('weight_loss', total_loss.item())
-        
         
         test_accuracy,test_loss = self.inference(self.net)
 

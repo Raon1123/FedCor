@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Python version: 3.6
-
-
 import os
 import copy
 import time
@@ -23,13 +21,13 @@ from update import LocalUpdate,test_inference,train_federated_learning,federated
 from models import MLP, NaiveCNN, BNCNN, ResNet,RNN
 from utils import get_dataset, average_weights, exp_details,setup_seed
 from mvnt import MVN_Test
+from logger import get_writter, log_experiment
 import GPR
 from GPR import Kernel_GPR,TrainGPR
 
 
 import matplotlib
 import matplotlib.pyplot as plt
-# matplotlib.use('Agg')
 from math import ceil
 
 
@@ -40,11 +38,11 @@ if __name__ == '__main__':
     start_time = time.time()
     # define paths
     path_project = os.path.abspath('..')
-    # logger = SummaryWriter('./logs')
 
     args = args_parser()
     gargs = copy.deepcopy(args)
     exp_details(args)
+    writer = get_writter(args)
     if not args.iid:
         base_file = './save/objects/{}_{}_{}_{}_C[{}]_iid[{}]_{}[{}]_E[{}]_B[{}]_mu[{}]_lr[{:.5f}]'.\
                     format(args.dataset,'FedProx[%.3f]'%args.mu if args.FedProx else 'FedAvg', args.model, args.epochs,args.frac, args.iid,
@@ -67,10 +65,6 @@ if __name__ == '__main__':
         file_name = base_file+'/gpr[int{}_gp{}_norm{}]_{}[{}]'.\
             format(args.GPR_interval,args.group_size,args.poly_norm,
             args.discount_method,args.loss_power if args.discount_method=='loss' else args.discount)
-    
-
-
-    
 
     device = 'cuda:'+args.gpu if args.gpu else 'cpu'
     if args.gpu:
@@ -133,7 +127,6 @@ if __name__ == '__main__':
         global_weights = global_model.state_dict()
         local_weights = []# store local weights of all users for averaging
         local_states = []# store local states of all users, these parameters should not be uploaded
-
         
         for i in range(args.num_users):
             local_states.append(copy.deepcopy(global_model.Get_Local_State_Dict()))
@@ -154,8 +147,7 @@ if __name__ == '__main__':
         gpr_data = []# GPR Training data
         print_every = 1
         init_mu = args.mu
-
-        
+  
         gpr_idxs_users = None
         gpr_loss_decrease = []
         gpr_acc_improve = []
@@ -168,19 +160,10 @@ if __name__ == '__main__':
         sigma = []
         sigma_gt=[]
 
-
         # Test the global model before training
         list_acc, list_loss = federated_test_idx(args,global_model,
                                                 list(range(args.num_users)),
                                                 train_dataset,user_groups)
-        # global_model.eval()
-        # local_model = copy.deepcopy(global_model).to(device)
-        # for idx in range(args.num_users):
-        #     local_update = LocalUpdate(args=args, dataset=train_dataset,
-        #                                 idxs=user_groups[idx])
-        #     acc, loss = local_update.inference(model=local_model)
-        #     list_acc.append(acc)
-        #     list_loss.append(loss)
         gt_global_losses.append(list_loss)
         train_accuracy.append(sum(list_acc)/len(list_acc))
         
@@ -195,9 +178,6 @@ if __name__ == '__main__':
             global_model.train()
             if args.dataset=='cifar' or epoch in args.schedule:
                 args.lr*=args.lr_decay
-                
-            
-                
 
             if gpr_idxs_users is not None and not args.gpr_selection:
                 # Testing off-policy selection
@@ -218,8 +198,6 @@ if __name__ == '__main__':
                 if args.verbose:
                     print("Training with {} Selection".format('Random' if not args.power_d else 'Power-D'))
             
-
-            
             m = max(int(args.frac * args.num_users), 1)
 
             if args.afl:
@@ -233,7 +211,6 @@ if __name__ == '__main__':
                 remain = set(np.arange(args.num_users))-set(sel1)
                 sel2 = np.random.choice(list(remain),m-sel_num,replace = False)
                 idxs_users = np.append(sel1,sel2)
-
 
             elif args.power_d:
                 # use power_d algorithm
@@ -258,7 +235,6 @@ if __name__ == '__main__':
                 local_weights[idx]=copy.deepcopy(w)
                 epoch_global_losses.append(init_test_loss)# TAKE CARE: this is the test loss evaluated on the (t-1)-th global weights!
                 epoch_local_losses.append(test_loss)
-
 
             # update global weights
             if args.global_average:
@@ -290,14 +266,6 @@ if __name__ == '__main__':
             list_acc, list_loss = federated_test_idx(args,global_model,
                                                     list(range(args.num_users)),
                                                     train_dataset,user_groups)
-            # global_model.eval()
-            # local_model = copy.deepcopy(global_model).to(device)
-            # for idx in range(args.num_users):
-            #     local_update = LocalUpdate(args=args, dataset=train_dataset,
-            #                             idxs=user_groups[idx])
-            #     acc, loss = local_update.inference(model=local_model)
-            #     list_acc.append(acc)
-            #     list_loss.append(loss)
             gt_global_losses.append(list_loss)
             train_accuracy.append(sum(list_acc)/len(list_acc))
 
@@ -318,11 +286,6 @@ if __name__ == '__main__':
                 predict_loss,mu_p,sigma_p = gpr.Predict_Loss(test_data,test_idx,pred_idx)
                 print("GPR Predict relative Loss:{:.4f}".format(predict_loss))
                 predict_losses.append(predict_loss)
-                # mu.append(mu_p.detach().numpy())
-                # sigma.append(sigma_p.detach().numpy())
-                
-
-            
 
             # train and exploit GPR
             if args.gpr:
@@ -372,11 +335,6 @@ if __name__ == '__main__':
                     sigma_gt.append(np.cov(mvn_samples,rowvar=False,bias = True))
                     sigma.append(gpr.Covariance().clone().detach().numpy())
 
-                    
-                
-                
-                
-
             # test inference on the global test dataset
             test_acc, test_loss = test_inference(args, global_model, test_dataset)
             test_accuracy.append(test_acc)
@@ -386,11 +344,12 @@ if __name__ == '__main__':
 
             # print global training loss after every 'i' rounds
             if (epoch+1) % print_every == 0:
+                training_loss = np.sum(np.array(list_loss)*weights)
                 print(' \nAvg Training Stats after {} global rounds:'.format(epoch+1))
-                print('Training Loss : {}'.format(np.sum(np.array(list_loss)*weights)))
-                # print('Train Accuracy: {:.2f}%'.format(100*train_accuracy[-1]))
+                print('Training Loss : {}'.format(training_loss))
+                print('Train Accuracy: {:.2f}%'.format(100*train_accuracy[-1]))
                 print("Test Accuracy: {:.2f}%\n".format(100*test_acc))
-        
+                log_experiment(writer, training_loss, 100*train_accuracy[-1], 100*test_acc)
         
         print(' \n Results after {} global rounds of training:'.format(epoch+1))
         print("|---- Final Test Accuracy: {:.2f}%".format(100*test_accuracy[-1]))
@@ -408,7 +367,3 @@ if __name__ == '__main__':
         if args.mvnt:
             with open(file_name+'/MVN/{}/Sigma.pkl'.format(seed), 'wb') as f:
                 pickle.dump([sigma,sigma_gt],f)
-
-        
-        
-        

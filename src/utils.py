@@ -18,8 +18,6 @@ from numpy.random import RandomState
 import random
 
 
-
-
 def setup_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -36,7 +34,7 @@ def get_dataset(args,seed=None):
     rs = RandomState(seed)
     if args.dataset == 'cifar':
         args.num_classes = 10
-        data_dir = '/home/eva_share/datasets/cifar10'
+        data_dir = '~/datasets/cifar10'
         apply_transform = transforms.Compose(
             [transforms.ToTensor(),
              transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
@@ -67,10 +65,7 @@ def get_dataset(args,seed=None):
 
     elif args.dataset == 'mnist' or args.dataset == 'fmnist':
         args.num_classes = 10
-        # if args.dataset == 'mnist':
-        data_dir = '/home/eva_share/datasets/'
-        # else:
-        # data_dir = './data/'
+        data_dir = '~/datasets/mnist'
 
         apply_transform = transforms.Compose([
             transforms.ToTensor(),
@@ -108,12 +103,12 @@ def get_dataset(args,seed=None):
     
     elif args.dataset == 'shake':
         args.num_classes = 80
-        data_dir = './data/shakespeare/'
+        data_dir = '~/datasets/shakespeare/'
         user_groups_test={}
         train_dataset,test_dataset,user_groups=shakespeare(data_dir,args.shards_per_client,rs)
     elif args.dataset == 'sent':
         args.num_classes = 2
-        data_dir = './data/sent140/'
+        data_dir = '~/datasets/sent140/'
         user_groups_test={}
         train_dataset,test_dataset,user_groups=sent140(data_dir,args.shards_per_client,rs)
         
@@ -150,9 +145,6 @@ def average_weights(w,omega=None):
             avg_molecule+=w[i][key]*omega[i]
         w_avg[key] = copy.deepcopy(avg_molecule)
     return w_avg
-
-
-
 
 
 def exp_details(args):
