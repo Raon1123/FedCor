@@ -4,6 +4,8 @@
 
 1. python 3.8
 2. pytorch 1.7.0
+3. tqdm
+4. tensorboard 
 6. cvxopt 1.2.0
 
 ## Running Experiments
