@@ -3,6 +3,8 @@
 # Python version: 3.6
 
 import copy
+import os
+
 import torch
 from torchvision import datasets, transforms
 
@@ -17,6 +19,7 @@ from numpy.random import RandomState
 # from random import Random
 import random
 
+from models import MLP, NaiveCNN, BNCNN, ResNet,RNN
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -167,6 +170,73 @@ def exp_details(args):
     else:
         print('    Algorithm    :    FedAvg')
     return
+
+
+def get_device(args):
+    device = 'cuda:'+ args.gpu if args.gpu else 'cpu'
+    if args.gpu:
+        torch.cuda.set_device(device)
+    return device
+
+
+def get_model(args, data_size):
+    if args.model == 'cnn':
+        # Naive Convolutional neural netork
+        global_model = NaiveCNN(args=args, 
+            input_shape = data_size,
+            final_pool=False)
+    elif args.model == 'bncnn':
+        # Convolutional neural network with batch normalization
+        global_model = BNCNN(args = args, 
+            input_shape = data_size)
+    elif args.model == 'mlp' or args.model == 'log':
+        # Multi-layer preceptron
+        len_in = 1
+        for x in data_size:
+            len_in *= x
+            global_model = MLP(dim_in=len_in, 
+                dim_hidden=args.mlp_layers if args.model=='mlp' else [],
+                dim_out=args.num_classes)
+    elif args.model == 'resnet':
+        global_model = ResNet(args.depth,args.num_classes)
+    elif args.model == 'rnn':
+        if args.dataset=='shake':
+            global_model = RNN(256,args.num_classes)
+        else:
+            # emb_arr,_,_= get_word_emb_arr('./data/sent140/embs.json')
+            global_model = RNN(256,args.num_classes,300,True,128)
+    else:
+        exit('Error: unrecognized model')
+
+    return global_model
+
+
+def get_filename(args):
+    if not args.iid:
+        base_file = './save/objects/{}_{}_{}_{}_C[{}]_iid[{}]_{}[{}]_E[{}]_B[{}]_mu[{}]_lr[{:.5f}]'.\
+                    format(args.dataset,'FedProx[%.3f]'%args.mu if args.FedProx else 'FedAvg', args.model, args.epochs,args.frac, args.iid,
+                    'sp' if args.alpha is None else 'alpha',args.shards_per_client if args.alpha is None else args.alpha,
+                    args.local_ep, args.local_bs,args.mu,args.lr)
+    else:
+        base_file = './save/objects/{}_{}_{}_{}_C[{}]_iid[{}]_E[{}]_B[{}]_mu[{}]_lr[{:.5f}]'.\
+                    format(args.dataset,'FedProx[%.3f]'%args.mu if args.FedProx else 'FedAvg', args.model, args.epochs,args.frac, args.iid,
+                    args.local_ep, args.local_bs,args.mu,args.lr)
+    if not os.path.exists(base_file):
+        os.makedirs(base_file)
+
+    if args.afl:
+        file_name = base_file+'/afl'
+    elif args.power_d:
+        file_name = base_file+'/powerd_d[{}]'.format(args.d)
+    elif not args.gpr_selection:
+        file_name = base_file+'/random'
+    else:
+        file_name = base_file+'/gpr[int{}_gp{}_norm{}]_{}[{}]'.\
+            format(args.GPR_interval,args.group_size,args.poly_norm,
+            args.discount_method,args.loss_power if args.discount_method=='loss' else args.discount)
+
+    return file_name
+
 
 if __name__ == "__main__":
     from options import args_parser

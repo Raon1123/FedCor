@@ -3,20 +3,21 @@ import os
 
 from torch.utils.tensorboard import SummaryWriter
 
-def get_expstr(args):
+def get_expstr(args, seed):
     now = datetime.datetime.now()
     exp_list = [
         now.strftime("%y%m%d_%H%M%S"),
         args.prefix,
         args.dataset,
-        args.optimizer
+        args.optimizer,
+        str(seed)
     ]
     return "_".join(exp_list)
 
 
-def get_writter(args):
-    logdir = './runs'
-    expstr = get_expstr(args)
+def get_writter(args, seed):
+    logdir = './logdir'
+    expstr = get_expstr(args, seed)
     log_PATH = os.path.join(logdir, expstr)
 
     writer = SummaryWriter(log_dir=log_PATH)
