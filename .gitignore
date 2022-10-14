@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# For testing
+outs/
+runs/
+save/
+scripts/
