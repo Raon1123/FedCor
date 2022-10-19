@@ -209,7 +209,10 @@ def Dirichlet_noniid(dataset, num_users, num_classes, alpha, rs):
     dict_users = {i: np.array([],dtype=np.int64) for i in range(num_users)}
     idxs = np.arange(len(dataset))
     # labels = dataset.train_labels.numpy()
-    labels = np.array(dataset.targets)
+    try:
+        labels = np.array(dataset.targets)
+    except AttributeError:
+        labels = np.array(dataset.tensors[1])
     labels_idxs = []
     prior_class_distribution = np.zeros(num_classes)
     b = np.zeros(num_classes)

@@ -22,6 +22,56 @@ class FedModule(object):
 
 
 
+class FeatureMLP(nn.Module,FedModule):
+    def __init__(self, dim_in, dim_hidden, dim_out, dropout=0.1):
+        super(FeatureMLP, self).__init__()
+        self.dim_in = dim_in
+        self.layers = []
+        self.relus = []
+        self.dropouts = []
+        
+        if len(dim_hidden)>0:
+            self.layers.append(nn.Linear(dim_in, dim_hidden[0]))
+            self.relus.append(nn.ReLU())
+            self.dropouts.append(nn.Dropout(p=dropout))
+            for n in range(len(dim_hidden)-1):
+                self.layers.append(nn.Linear(dim_hidden[n],dim_hidden[n+1]))
+                self.relus.append(nn.Tanh())
+                self.dropouts.append(nn.Dropout(p=dropout))
+            self.layers.append(nn.Linear(dim_hidden[-1], dim_out))
+        else:
+            # logistic regression
+            self.layers.append(nn.Linear(dim_in, dim_out))
+
+        self.layers = nn.ModuleList(self.layers)
+        self.relus = nn.ModuleList(self.relus)
+        self.dropouts = nn.ModuleList(self.dropouts)
+
+    def forward(self, x):
+        for n in range(len(self.relus)):
+            x = self.layers[n](x)
+            x = self.dropouts[n](x)
+            x = self.relus[n](x)
+        x = self.layers[-1](x)
+        return x
+
+    def Get_Local_State_Dict(self):
+        # save local parameters without weights and bias
+        sd = self.state_dict()
+        for name in list(sd.keys()):
+            if 'weight' in name or 'bias' in name:
+                sd.pop(name)
+        return sd
+
+    def Load_Local_State_Dict(self,local_dict):
+        # load local parameters saved by Get_Local_State_Dict()
+        sd = self.state_dict()
+        sd.update(local_dict)
+        self.load_state_dict(sd)
+
+
+
+
 class MLP(nn.Module,FedModule):
     def __init__(self, dim_in, dim_hidden, dim_out):
         super(MLP, self).__init__()

@@ -7,19 +7,20 @@ import os
 
 import torch
 from torchvision import datasets, transforms
+from torch.utils.data import TensorDataset
 
 from sampling import mnist_iid, mnist_noniid, mnist_noniid_unequal
 from sampling import cifar_iid, cifar_noniid
 from sampling import Dirichlet_noniid
 from sampling import shakespeare,sent140
 
-
 import numpy as np
 from numpy.random import RandomState
 # from random import Random
 import random
+from scipy import io
 
-from models import MLP, NaiveCNN, BNCNN, ResNet,RNN
+from models import MLP, NaiveCNN, BNCNN, ResNet, RNN, FeatureMLP
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -53,6 +54,7 @@ def get_dataset(args,seed=None):
         train_dataset,test_dataset,user_groups=sent140(data_dir,args.shards_per_client,rs)
     elif args.dataset == 'cifar10feature':
         args.num_classes = 10
+        train_dataset, test_dataset, user_groups, user_groups_test = get_cifar10_feature(args, rs)
     else:
         raise RuntimeError("Not registered dataset! Please register it in utils.py")
     
@@ -143,6 +145,13 @@ def get_model(args, data_size):
         else:
             # emb_arr,_,_= get_word_emb_arr('./data/sent140/embs.json')
             global_model = RNN(256,args.num_classes,300,True,128)
+    elif args.model == 'featuremlp':
+        len_in = 1
+        for x in data_size:
+            len_in *= x
+            global_model = FeatureMLP(dim_in=len_in, 
+                dim_hidden=args.mlp_layers if args.model=='featuremlp' else [],
+                dim_out=args.num_classes)
     else:
         exit('Error: unrecognized model')
 
@@ -189,6 +198,48 @@ def get_cifar10(args, rs):
     test_dataset = datasets.CIFAR10(data_dir, train=False, download=True,
                                     transform=apply_transform)
 
+    # sample training data amongst users
+    if args.iid:
+        # Sample IID user data from Mnist
+        user_groups = cifar_iid(train_dataset, args.num_users,rs)
+        user_groups_test = cifar_iid(test_dataset,args.num_users,rs)
+    else:
+        # Sample Non-IID user data from Mnist
+        if args.alpha is not None:
+            user_groups,_ = Dirichlet_noniid(train_dataset, args.num_users, args.num_classes, args.alpha, rs)
+            user_groups_test,_ = Dirichlet_noniid(test_dataset, args.num_users, args.num_classes, args.alpha, rs)
+        elif args.unequal:
+            # Chose uneuqal splits for every user
+            raise NotImplementedError()
+        else:
+            # Chose euqal splits for every user
+            user_groups = cifar_noniid(train_dataset, args.num_users,args.shards_per_client,rs)
+            user_groups_test = cifar_noniid(test_dataset, args.num_users,args.shards_per_client,rs)
+
+    return train_dataset, test_dataset, user_groups, user_groups_test
+
+
+def get_cifar10_feature(args, rs):
+    args.num_classes = 10
+    data_dir = '/home/mlv/datasets/DataCIFAR10/' # FIXIT
+    trn_name = 'CIFAR10Trn.mat'
+    mat_path = os.path.join(data_dir, trn_name)
+    mat = io.loadmat(mat_path)
+
+    trnX = torch.Tensor(mat['Trn'][0][0][0])
+    trnY = torch.Tensor(mat['Trn'][0][0][1]).argmax(axis=1)
+
+    print(trnX.shape, trnY.shape)
+    tst_name = 'CIFAR10Tst.mat'
+    mat_path = os.path.join(data_dir, tst_name)
+    mat = io.loadmat(mat_path)
+
+    tstX = torch.Tensor(mat['Tst'][0][0][0])
+    tstY = torch.Tensor(mat['Tst'][0][0][1]).argmax(axis=1)
+
+    train_dataset = TensorDataset(trnX, trnY)
+    test_dataset = TensorDataset(tstX, tstY)
+    
     # sample training data amongst users
     if args.iid:
         # Sample IID user data from Mnist
