@@ -36,74 +36,11 @@ def get_dataset(args,seed=None):
     """
     rs = RandomState(seed)
     if args.dataset == 'cifar':
-        args.num_classes = 10
-        data_dir = '~/datasets/cifar10'
-        apply_transform = transforms.Compose(
-            [transforms.ToTensor(),
-             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-        train_dataset = datasets.CIFAR10(data_dir, train=True, download=True,
-                                       transform=apply_transform)
-
-        test_dataset = datasets.CIFAR10(data_dir, train=False, download=True,
-                                      transform=apply_transform)
-
-        # sample training data amongst users
-        if args.iid:
-            # Sample IID user data from Mnist
-            user_groups = cifar_iid(train_dataset, args.num_users,rs)
-            user_groups_test = cifar_iid(test_dataset,args.num_users,rs)
-        else:
-            # Sample Non-IID user data from Mnist
-            if args.alpha is not None:
-                user_groups,_ = Dirichlet_noniid(train_dataset, args.num_users,args.alpha,rs)
-                user_groups_test,_ = Dirichlet_noniid(test_dataset, args.num_users,args.alpha,rs)
-            elif args.unequal:
-                # Chose uneuqal splits for every user
-                raise NotImplementedError()
-            else:
-                # Chose euqal splits for every user
-                user_groups = cifar_noniid(train_dataset, args.num_users,args.shards_per_client,rs)
-                user_groups_test = cifar_noniid(test_dataset, args.num_users,args.shards_per_client,rs)
-
+        train_dataset, test_dataset, user_groups, user_groups_test = get_cifar10(args, rs)
+    elif args.dataset == 'cifar100':
+        train_dataset, test_dataset, user_groups, user_groups_test = get_cifar100(args, rs)
     elif args.dataset == 'mnist' or args.dataset == 'fmnist':
-        args.num_classes = 10
-        data_dir = '~/datasets/mnist'
-
-        apply_transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,))])
-        if args.dataset == 'mnist':
-            train_dataset = datasets.MNIST(data_dir, train=True, download=True,
-                                        transform=apply_transform)
-
-            test_dataset = datasets.MNIST(data_dir, train=False, download=True,
-                                        transform=apply_transform)
-        else:
-            train_dataset = datasets.FashionMNIST(data_dir, train=True, download=True,
-                                        transform=apply_transform)
-
-            test_dataset = datasets.FashionMNIST(data_dir, train=False, download=True,
-                                        transform=apply_transform)
-
-        # sample training data amongst users
-        if args.iid:
-            # Sample IID user data from Mnist
-            user_groups = mnist_iid(train_dataset, args.num_users,rs)
-            user_groups_test = mnist_iid(test_dataset,args.num_users,rs)
-        else:
-            # Sample Non-IID user data from Mnist
-            if args.alpha is not None:
-                user_groups,_ = Dirichlet_noniid(train_dataset, args.num_users,args.alpha,rs)
-                user_groups_test,_ = Dirichlet_noniid(test_dataset, args.num_users,args.alpha,rs)
-            elif args.unequal:
-                # Chose uneuqal splits for every user
-                user_groups = mnist_noniid_unequal(train_dataset, args.num_users,rs)
-                user_groups_test = mnist_noniid_unequal(test_dataset, args.num_users,rs)
-            else:
-                user_groups = mnist_noniid(train_dataset, args.num_users,args.shards_per_client,rs)
-                user_groups_test = mnist_noniid(test_dataset,args.num_users,args.shards_per_client,rs)
-    
+        train_dataset, test_dataset, user_groups, user_groups_test = get_fmnist(args, rs)
     elif args.dataset == 'shake':
         args.num_classes = 80
         data_dir = '~/datasets/shakespeare/'
@@ -114,7 +51,8 @@ def get_dataset(args,seed=None):
         data_dir = '~/datasets/sent140/'
         user_groups_test={}
         train_dataset,test_dataset,user_groups=sent140(data_dir,args.shards_per_client,rs)
-        
+    elif args.dataset == 'cifar10feature':
+        args.num_classes = 10
     else:
         raise RuntimeError("Not registered dataset! Please register it in utils.py")
     
@@ -124,7 +62,7 @@ def get_dataset(args,seed=None):
         weights.append(len(user_groups[i])/len(train_dataset))
     
     
-    return train_dataset, test_dataset, user_groups, user_groups_test,np.array(weights)
+    return train_dataset, test_dataset, user_groups, user_groups_test, np.array(weights)
 
 
 def average_weights(w,omega=None):
@@ -236,6 +174,114 @@ def get_filename(args):
             args.discount_method,args.loss_power if args.discount_method=='loss' else args.discount)
 
     return file_name
+
+
+def get_cifar10(args, rs):
+    args.num_classes = 10
+    data_dir = '~/datasets/cifar10'
+    apply_transform = transforms.Compose(
+        [transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+    train_dataset = datasets.CIFAR10(data_dir, train=True, download=True,
+                                    transform=apply_transform)
+
+    test_dataset = datasets.CIFAR10(data_dir, train=False, download=True,
+                                    transform=apply_transform)
+
+    # sample training data amongst users
+    if args.iid:
+        # Sample IID user data from Mnist
+        user_groups = cifar_iid(train_dataset, args.num_users,rs)
+        user_groups_test = cifar_iid(test_dataset,args.num_users,rs)
+    else:
+        # Sample Non-IID user data from Mnist
+        if args.alpha is not None:
+            user_groups,_ = Dirichlet_noniid(train_dataset, args.num_users, args.num_classes, args.alpha, rs)
+            user_groups_test,_ = Dirichlet_noniid(test_dataset, args.num_users, args.num_classes, args.alpha, rs)
+        elif args.unequal:
+            # Chose uneuqal splits for every user
+            raise NotImplementedError()
+        else:
+            # Chose euqal splits for every user
+            user_groups = cifar_noniid(train_dataset, args.num_users,args.shards_per_client,rs)
+            user_groups_test = cifar_noniid(test_dataset, args.num_users,args.shards_per_client,rs)
+
+    return train_dataset, test_dataset, user_groups, user_groups_test
+
+
+def get_cifar100(args, rs):
+    args.num_classes = 100
+    data_dir = '~/datasets/cifar100'
+    apply_transform = transforms.Compose(
+        [transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+    train_dataset = datasets.CIFAR100(data_dir, train=True, download=True,
+                                    transform=apply_transform)
+
+    test_dataset = datasets.CIFAR100(data_dir, train=False, download=True,
+                                    transform=apply_transform)
+
+    # sample training data amongst users
+    if args.iid:
+        # Sample IID user data from Mnist
+        user_groups = cifar_iid(train_dataset, args.num_users,rs)
+        user_groups_test = cifar_iid(test_dataset,args.num_users,rs)
+    else:
+        # Sample Non-IID user data from Mnist
+        if args.alpha is not None:
+            user_groups,_ = Dirichlet_noniid(train_dataset, args.num_users, args.num_classes, args.alpha, rs)
+            user_groups_test,_ = Dirichlet_noniid(test_dataset, args.num_users, args.num_classes, args.alpha,rs)
+        elif args.unequal:
+            # Chose uneuqal splits for every user
+            raise NotImplementedError()
+        else:
+            # Chose euqal splits for every user
+            user_groups = cifar_noniid(train_dataset, args.num_users,args.shards_per_client,rs)
+            user_groups_test = cifar_noniid(test_dataset, args.num_users,args.shards_per_client,rs)
+    return train_dataset, test_dataset, user_groups, user_groups_test
+
+
+def get_fmnist(args, rs):
+    args.num_classes = 10
+    data_dir = '~/datasets/mnist'
+
+    apply_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))])
+    if args.dataset == 'mnist':
+        train_dataset = datasets.MNIST(data_dir, train=True, download=True,
+                                    transform=apply_transform)
+
+        test_dataset = datasets.MNIST(data_dir, train=False, download=True,
+                                    transform=apply_transform)
+    else:
+        train_dataset = datasets.FashionMNIST(data_dir, train=True, download=True,
+                                    transform=apply_transform)
+
+        test_dataset = datasets.FashionMNIST(data_dir, train=False, download=True,
+                                    transform=apply_transform)
+
+    # sample training data amongst users
+    if args.iid:
+        # Sample IID user data from Mnist
+        user_groups = mnist_iid(train_dataset, args.num_users,rs)
+        user_groups_test = mnist_iid(test_dataset,args.num_users,rs)
+    else:
+        # Sample Non-IID user data from Mnist
+        if args.alpha is not None:
+            user_groups,_ = Dirichlet_noniid(train_dataset, args.num_users,args.alpha,rs)
+            user_groups_test,_ = Dirichlet_noniid(test_dataset, args.num_users,args.alpha,rs)
+        elif args.unequal:
+            # Chose uneuqal splits for every user
+            user_groups = mnist_noniid_unequal(train_dataset, args.num_users,rs)
+            user_groups_test = mnist_noniid_unequal(test_dataset, args.num_users,rs)
+        else:
+            user_groups = mnist_noniid(train_dataset, args.num_users,args.shards_per_client,rs)
+            user_groups_test = mnist_noniid(test_dataset,args.num_users,args.shards_per_client,rs)
+
+    return train_dataset, test_dataset, user_groups, user_groups_test
 
 
 if __name__ == "__main__":

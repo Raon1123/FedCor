@@ -201,7 +201,7 @@ def cifar_noniid(dataset, num_users,shards_per_client,rs):
         rs.shuffle(dict_users[i])
     return dict_users
 
-def Dirichlet_noniid(dataset,num_users,alpha,rs):
+def Dirichlet_noniid(dataset, num_users, num_classes, alpha, rs):
     """
     Sample dataset with dirichlet distribution and concentration parameter alpha
     """
@@ -210,7 +210,6 @@ def Dirichlet_noniid(dataset,num_users,alpha,rs):
     idxs = np.arange(len(dataset))
     # labels = dataset.train_labels.numpy()
     labels = np.array(dataset.targets)
-    num_classes = np.max(labels)+1
     labels_idxs = []
     prior_class_distribution = np.zeros(num_classes)
     b = np.zeros(num_classes)
@@ -219,12 +218,13 @@ def Dirichlet_noniid(dataset,num_users,alpha,rs):
         prior_class_distribution[i] = len(labels_idxs[i])/len(dataset)
         b[i]=len(labels_idxs[i])
     
-    data_ratio = np.zeros([num_classes,num_users])
+    data_ratio = np.zeros([num_classes, num_users])
     if isinstance(alpha,list):
         for i in range(num_users):
             data_ratio[:,i] = rs.dirichlet(prior_class_distribution*alpha[i])
     else:
         data_ratio = np.transpose(rs.dirichlet(prior_class_distribution*alpha,size=num_users))
+
     # data_ratio = data_ratio/np.sum(data_ratio,axis=1,keepdims=True)
     # Client_DataSize = len(dataset)//num_users*np.ones([num_users,1],dtype=np.int64)
     A = matrix(data_ratio)
@@ -235,7 +235,7 @@ def Dirichlet_noniid(dataset,num_users,alpha,rs):
     q = matrix(np.zeros([num_users,1]))
     results = solvers.qp(P,q,G,h,A,b)
     Client_DataSize = np.array(results['x'])
-    # print(Client_DataSize)
+    #print(Client_DataSize)
     Data_Division = data_ratio*np.transpose(Client_DataSize)
     rest = []
     for label in range(num_classes):
@@ -254,30 +254,7 @@ def Dirichlet_noniid(dataset,num_users,alpha,rs):
         rs.shuffle(dict_users[user])
     # print(data_ratio[:,:10])
     return dict_users,data_ratio
-    # # sort labels
-    # idxs_labels = np.vstack((idxs, labels))
-    # idxs_labels = idxs_labels[:, idxs_labels[1, :].argsort()]
-    # idxs = idxs_labels[0, :]
 
-    # prior_class_stat = Counter(labels)
-    # # print(prior_class_stat)
-    # prior_class_ditribution = np.zeros(max(labels)+1)
-    # for label in range(max(labels)+1):
-    #     prior_class_ditribution[label] = prior_class_stat[label]/len(dataset)
-    # dist = Dirichlet(torch.tensor(alpha)*torch.tensor(prior_class_ditribution))
-    # for i in range(num_users):
-    #     class_distribution = dist.sample().detach().numpy()
-    #     img_num_per_class = (img_num_per_client*class_distribution).astype(np.int64)
-    #     img_num_per_class[-1]+=img_num_per_client-np.sum(img_num_per_class,dtype=np.int64)
-    #     # print(img_num_per_class)
-    #     label_start = 0
-    #     for l in range(max(labels)+1):
-    #         dict_users[i] =np.concatenate([dict_users[i],
-    #                                       rs.choice(idxs[label_start:label_start+prior_class_stat[l]],
-    #                                                        img_num_per_class[l],replace = False)],0)
-    #         label_start = label_start+prior_class_stat[l]
-    #     rs.shuffle(dict_users[i])
-    # return dict_users
 
 def shakespeare(data_dir,spc,rs):
     trainx = torch.tensor([], dtype = torch.uint8)

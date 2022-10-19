@@ -3,11 +3,7 @@ from torch.nn.parameter import Parameter
 import numpy as np
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.distributions.normal import Normal
-import pickle
-import copy
-import math
 
-import matplotlib
 import matplotlib.pyplot as plt
 
 
@@ -56,12 +52,13 @@ class GPR(torch.nn.Module):
         Cov = self.Covariance()
         
         Sigma_inv = torch.inverse(Cov[indexes,:][:,indexes]+torch.diag(noisy).to(self.noise)*(self.noise**2))
-        # e,v = torch.symeig(Sigma_inv)
-        # print(e)
-        # print((Cov[indexes,:][:,indexes]+torch.diag(noisy)*(self.noise**2)).mm(Sigma_inv))
+        #e,v = torch.symeig(Sigma_inv)
+        #print(e)
+        #print((Cov[indexes,:][:,indexes]+torch.diag(noisy)*(self.noise**2)).mm(Sigma_inv))
         mu = self.mu.to(self.noise)+((Cov[:,indexes].mm(Sigma_inv)).mm((values-self.mu[indexes].to(self.noise)).unsqueeze(1))).squeeze()
-        Sigma = Cov-(Cov[:,indexes].mm(Sigma_inv)).mm(Cov[indexes,:])
-        return mu.detach(),Sigma.detach()
+        #Sigma = Cov-(Cov[:,indexes].mm(Sigma_inv)).mm(Cov[indexes,:])
+        Sigma = Cov
+        return mu.detach(), Sigma.detach()
 
     def Log_Marginal_Likelihood(self,data):
         """
@@ -245,14 +242,17 @@ class GPR(torch.nn.Module):
 
     def Predict_Loss(self,data,priori_idx,posteriori_idx):
         mu_p,sigma_p = self.Posteriori(data[priori_idx,:])
-        noise_scale = 1e-3
+        noise_scale = 0.1
         while True:
             try:
                 pdist = MultivariateNormal(loc = mu_p[posteriori_idx],
                                            covariance_matrix = sigma_p[posteriori_idx,:][:,posteriori_idx]+noise_scale*torch.eye(len(posteriori_idx)))
                 break
-            except RuntimeError:
+            except ValueError:
+                print(sigma_p.shape)
                 noise_scale*=10
+                if noise_scale > 100:
+                    raise Exception("Cannot satisfy positive definiteness property")
         predict_loss = -pdist.log_prob(torch.tensor(data[posteriori_idx,1]).to(mu_p))
         predict_loss = predict_loss.detach().item()
         return predict_loss,mu_p,sigma_p
@@ -264,11 +264,7 @@ class GPR(torch.nn.Module):
         self.discount[index]*=factor
 
 
-
-                
-
-
-def TrainGPR(gpr,data,method = None,lr = 1e-3,llr = 1e-4,gamma = 0.9,max_epoches = 100,schedule_lr = False,schedule_t = None,schedule_gamma = 0.1,verbose=True):
+def TrainGPR(gpr,data,method = None,lr = 1e-4,llr = 1e-4,gamma = 0.9,max_epoches = 100,schedule_lr = False,schedule_t = None,schedule_gamma = 0.1,verbose=True):
     """
     Train hyperparameters(Covariance,noise) of GPR
     data : In shape as [Group,index,value,noise]
@@ -283,9 +279,7 @@ def TrainGPR(gpr,data,method = None,lr = 1e-3,llr = 1e-4,gamma = 0.9,max_epoches
                                   {'params':sigma_params,'lr':llr}], lr=lr,weight_decay=0.0)
     if schedule_lr:
         lr_scd = torch.optim.lr_scheduler.MultiStepLR(optimizer,schedule_t,gamma = schedule_gamma)
-    # for p in self.parameters():
-    #     print(p)
-    old_loss = None
+
     for epoch in range(max_epoches):
         gpr.zero_grad()
         loss = 0.0
@@ -306,7 +300,6 @@ def TrainGPR(gpr,data,method = None,lr = 1e-3,llr = 1e-4,gamma = 0.9,max_epoches
         if epoch%10==0 and verbose:
             print("Train_Epoch:{}\t|Noise:{:.4f}\t|Sigma:{:.4f}\t|Loss:{:.4f}".format(epoch,gpr.noise.detach().item(),torch.mean(torch.diagonal(gpr.Covariance())).detach().item(),loss.item()))
             #print(loss)
-        old_loss = loss.item()
         if schedule_lr:
             lr_scd.step()
             
