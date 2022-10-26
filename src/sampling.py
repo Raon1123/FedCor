@@ -16,7 +16,6 @@ from tqdm import tqdm
 import torch.utils.data as Data
 
 
-
 def mnist_iid(dataset, num_users,rs):
     """
     Sample I.I.D. client data from MNIST dataset
@@ -62,7 +61,6 @@ def mnist_noniid(dataset, num_users,shards_per_client,rs):
                 (dict_users[i], idxs[rand*num_imgs:(rand+1)*num_imgs]), axis=0)
         rs.shuffle(dict_users[i])
     return dict_users
-
 
 
 def mnist_noniid_unequal(dataset, num_users,rs):
@@ -128,7 +126,6 @@ def mnist_noniid_unequal(dataset, num_users,rs):
                     (dict_users[i], idxs[rand*num_imgs:(rand+1)*num_imgs]),
                     axis=0)
     else:
-
         for i in range(num_users):
             shard_size = random_shard_size[i]
             rand_set = set(rs.choice(idx_shard, shard_size,

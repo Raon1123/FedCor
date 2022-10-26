@@ -20,13 +20,13 @@ from utils import (get_dataset,
     average_weights, 
     exp_details, 
     setup_seed, 
-    get_model, get_device, get_filename)
+    get_model, get_device, get_filename, get_last_param)
 
 from mvnt import MVN_Test
 from logger import get_writter, log_experiment
 import GPR
 from GPR import Kernel_GPR
-from client_selection import (select_afl, select_powd, select_random, 
+from client_selection import (select_afl, select_powd, select_random, select_badge,
     gpr_test_offpolicy, gpr_warmup, gpr_optimal)
 
 
@@ -66,8 +66,8 @@ def oneseed_experiment(args, seed, file_name):
 
     # copy weights
     global_weights = global_model.state_dict()
-    local_weights = []# store local weights of all users for averaging
-    local_states = []# store local states of all users, these parameters should not be uploaded
+    local_weights = [] # store local weights of all users for averaging
+    local_states = [] # store local states of all users, these parameters should not be uploaded
     
     for i in range(args.num_users):
         local_states.append(copy.deepcopy(global_model.Get_Local_State_Dict()))
@@ -111,6 +111,8 @@ def oneseed_experiment(args, seed, file_name):
     if args.afl:
         AFL_Valuation = np.array(list_loss)*np.sqrt(weights*len(train_dataset))
 
+    prev_params = None
+
     # gpr_loss_data = None
     for epoch in tqdm(range(args.epochs)):
         print('\n | Global Training Round : {} |\n'.format(epoch+1))
@@ -118,12 +120,11 @@ def oneseed_experiment(args, seed, file_name):
         epoch_local_losses = []
         global_model.train()
         if args.dataset=='cifar' or epoch in args.schedule:
-            args.lr*=args.lr_decay
+            args.lr *= args.lr_decay
 
         if gpr_idxs_users is not None and not args.gpr_selection:
-            gpr_test_offpolicy(args, global_model, weights,
-                epoch, gpr_idxs_users, train_dataset, user_groups, gt_global_losses,
-                gpr, offpolicy_losses, gpr_loss_decrease, gpr_acc_improve, train_accuracy)
+            gpr_test_offpolicy(args, global_model, weights, epoch, gpr_idxs_users, train_dataset, user_groups, 
+                gt_global_losses, gpr, offpolicy_losses, gpr_loss_decrease, gpr_acc_improve, train_accuracy)
         
         m = max(int(args.frac * args.num_users), 1)
 
@@ -131,12 +132,14 @@ def oneseed_experiment(args, seed, file_name):
             idxs_users = select_afl(args, m, AFL_Valuation)
         elif args.power_d:
             idxs_users = select_powd(args, m, weights, gt_global_losses)
+        elif args.badge and prev_params is not None:
+            idxs_users = select_badge(args, m, prev_params)
         elif not args.gpr_selection or gpr_idxs_users is None:
             idxs_users = select_random(args, m)
         else:
             # FedGP
             idxs_users = copy.deepcopy(gpr_idxs_users)
-
+            
         chosen_clients.append(idxs_users)
         
         for idx in idxs_users:
@@ -149,6 +152,20 @@ def oneseed_experiment(args, seed, file_name):
             local_weights[idx]=copy.deepcopy(w)
             epoch_global_losses.append(init_test_loss)# TAKE CARE: this is the test loss evaluated on the (t-1)-th global weights!
             epoch_local_losses.append(test_loss)
+
+        if args.badge:
+            global_last = get_last_param(copy.deepcopy(global_model).state_dict())
+            prev_params = []
+            # get prev params
+            for i in range(args.num_users):
+                local_model = copy.deepcopy(global_model)
+                local_update = LocalUpdate(args=args, dataset=train_dataset,
+                                    idxs=user_groups[idx] ,global_round = epoch)
+                w, _, _ = local_update.update_weights(model=local_model)
+                last_param = get_last_param(w)
+                diff_vec = global_last - last_param
+                diff_vec = diff_vec / diff_vec.norm()
+                prev_params.append(diff_vec)
 
         # update global weights
         if args.global_average:

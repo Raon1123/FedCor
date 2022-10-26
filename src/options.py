@@ -111,6 +111,9 @@ def args_parser():
     parser.add_argument('--depth',type = int,default = 20, 
                         help = "The depth of ResNet. Only valid when model is resnet")
     
+    # badge arguments
+    parser.add_argument('--badge',action = 'store_true',
+                        help = 'use badge selection')
 
     # utils arguments
     parser.add_argument('--dataset', type=str, default='mnist', 

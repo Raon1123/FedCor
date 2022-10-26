@@ -102,6 +102,18 @@ def exp_details(args):
         print('    IID')
     else:
         print('    Non-IID')
+
+    if args.afl:
+        select_algo = "afl"
+    elif args.power_d:
+        select_algo = "powd"
+    elif args.badge:
+        select_algo = "badge"
+    elif args.gpr_selection:
+        select_algo = "gpr"
+    else:
+        select_algo = "random"
+    print('    Client Selection   : {}'.format(select_algo))
     print('    Fraction of users  : {}'.format(args.frac))
     print('    Local Batch size   : {}'.format(args.local_bs))
     print('    Local Epochs       : {}\n'.format(args.local_ep))
@@ -175,6 +187,8 @@ def get_filename(args):
         file_name = base_file+'/afl'
     elif args.power_d:
         file_name = base_file+'/powerd_d[{}]'.format(args.d)
+    elif args.badge:
+        file_name = base_file+'/badge'
     elif not args.gpr_selection:
         file_name = base_file+'/random'
     else:
@@ -322,8 +336,8 @@ def get_fmnist(args, rs):
     else:
         # Sample Non-IID user data from Mnist
         if args.alpha is not None:
-            user_groups,_ = Dirichlet_noniid(train_dataset, args.num_users,args.alpha,rs)
-            user_groups_test,_ = Dirichlet_noniid(test_dataset, args.num_users,args.alpha,rs)
+            user_groups,_ = Dirichlet_noniid(train_dataset, args.num_users, args.num_classes, args.alpha, rs)
+            user_groups_test,_ = Dirichlet_noniid(test_dataset, args.num_users, args.num_classes, args.alpha,rs)
         elif args.unequal:
             # Chose uneuqal splits for every user
             user_groups = mnist_noniid_unequal(train_dataset, args.num_users,rs)
@@ -333,6 +347,22 @@ def get_fmnist(args, rs):
             user_groups_test = mnist_noniid(test_dataset,args.num_users,args.shards_per_client,rs)
 
     return train_dataset, test_dataset, user_groups, user_groups_test
+
+
+def get_last_param(model):
+    """
+    Get last parameter of model
+    """
+    for name in model.keys():
+        param = model[name]
+        if name[-7:] == '.weight':
+            last_weight = copy.deepcopy(param).detach().cpu()
+        elif name[-5:] == '.bias':
+            last_bias = copy.deepcopy(param).unsqueeze(1).detach().cpu()
+
+    last_param = torch.cat([last_weight, last_bias], dim=1)
+    last_param = torch.flatten(last_param)
+    return last_param
 
 
 if __name__ == "__main__":

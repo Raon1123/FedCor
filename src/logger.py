@@ -5,11 +5,26 @@ from torch.utils.tensorboard import SummaryWriter
 
 def get_expstr(args, seed):
     now = datetime.datetime.now()
+    
+    select_algo = None
+
+    if args.afl:
+        select_algo = "afl"
+    elif args.power_d:
+        select_algo = "powd"
+    elif args.badge:
+        select_algo = "badge"
+    elif args.gpr_selection:
+        select_algo = "gpr"
+    else:
+        select_algo = "random"
+
     exp_list = [
         now.strftime("%y%m%d_%H%M%S"),
         args.prefix,
         args.dataset,
         args.optimizer,
+        select_algo,
         str(seed)
     ]
     return "_".join(exp_list)

@@ -2,6 +2,8 @@ import copy
 from math import ceil
 
 import numpy as np
+import torch
+import torch.nn as nn
 
 from update import train_federated_learning
 from GPR import TrainGPR
@@ -85,3 +87,35 @@ def gpr_optimal(args, epoch, gpr, m,
     print("Training GPR")
     TrainGPR(gpr,gpr_data[-ceil(args.group_size/args.GPR_interval):],
             args.train_method,lr = 1e-2,llr = 0.0,gamma = args.GPR_gamma**args.GPR_interval,max_epoches=args.GPR_Epoch,schedule_lr=False,verbose=args.verbose)
+
+
+def select_badge(args, m, prev_params):
+    params = torch.stack(prev_params)
+    pdist_mat = torch.full((m, args.num_users), torch.inf)
+    selected_clients = []
+
+    # using k-means++
+    seed_client = np.random.choice(args.num_users, 
+        1, replace=False).item()
+    selected_clients.append(seed_client)
+    pdist_mat[0:,] = get_pairdistance(params[seed_client,:], params)
+
+    for t in range(1, m):
+        pmf, _ = pdist_mat.min(dim=0)
+        pmf = torch.div(pmf, pmf.sum())
+
+        select = pmf.multinomial(num_samples=1, replacement=False).item()
+        selected_clients.append(select)
+
+        pdist_mat[t,:] = get_pairdistance(params[select,:], params)
+    
+    return selected_clients
+
+
+def get_pairdistance(vec1, vec2):
+    """
+    """
+    pdist = nn.PairwiseDistance(p=2)
+    ret = pdist(vec1, vec2)
+
+    return ret
