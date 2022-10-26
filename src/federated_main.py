@@ -14,7 +14,7 @@ import torch.multiprocessing
 # from language_utils import get_word_emb_arr
 
 from options import args_parser
-from update import LocalUpdate,test_inference,train_federated_learning,federated_test_idx
+from update import LocalUpdate,test_inference, federated_test_idx
 
 from utils import (get_dataset, 
     average_weights, 
@@ -25,9 +25,10 @@ from utils import (get_dataset,
 from mvnt import MVN_Test
 from logger import get_writter, log_experiment
 import GPR
-from GPR import Kernel_GPR,TrainGPR
+from GPR import Kernel_GPR
+from client_selection import (select_afl, select_powd, select_random, 
+    gpr_test_offpolicy, gpr_warmup, gpr_optimal)
 
-from math import ceil
 
 def oneseed_experiment(args, seed, file_name):
     # initialization
@@ -38,7 +39,7 @@ def oneseed_experiment(args, seed, file_name):
     print("Start with Random Seed: {}".format(seed))
 
     # load dataset and user groups
-    train_dataset, test_dataset, user_groups, user_groups_test, weights = get_dataset(args,seed)
+    train_dataset, test_dataset, user_groups, _, weights = get_dataset(args,seed)
     # weights /=np.sum(weights)
     if seed is not None:
         setup_seed(seed)
@@ -120,45 +121,18 @@ def oneseed_experiment(args, seed, file_name):
             args.lr*=args.lr_decay
 
         if gpr_idxs_users is not None and not args.gpr_selection:
-            # Testing off-policy selection
-            if args.verbose:
-                print("Training with GPR Selection:")
-            gpr_acc,gpr_loss = train_federated_learning(args,epoch,
-                                copy.deepcopy(global_model),gpr_idxs_users,train_dataset,user_groups)
-            gpr_loss_data = np.concatenate([np.expand_dims(list(range(args.num_users)),1),
-                                            np.expand_dims(np.array(gpr_loss)-np.array(gt_global_losses[-1]),1),
-                                            np.ones([args.num_users,1])],1)
-            predict_loss,_,_=gpr.Predict_Loss(gpr_loss_data,gpr_idxs_users,np.delete(list(range(args.num_users)),gpr_idxs_users))
-            print("GPR Predict Off-Policy Loss:{:.4f}".format(predict_loss))
-            offpolicy_losses.append(predict_loss)
-
-            gpr_dloss = np.sum((np.array(gpr_loss)-np.array(gt_global_losses[-1]))*weights)
-            gpr_loss_decrease.append(gpr_dloss)
-            gpr_acc_improve.append(gpr_acc-train_accuracy[-1])
-            if args.verbose:
-                print("Training with {} Selection".format('Random' if not args.power_d else 'Power-D'))
+            gpr_test_offpolicy(args, global_model, weights,
+                epoch, gpr_idxs_users, train_dataset, user_groups, gt_global_losses,
+                gpr, offpolicy_losses, gpr_loss_decrease, gpr_acc_improve, train_accuracy)
         
         m = max(int(args.frac * args.num_users), 1)
 
         if args.afl:
-            delete_num = int(args.alpha1*args.num_users)
-            sel_num = int((1-args.alpha3)*m)
-            tmp_value = np.vstack([np.arange(args.num_users),AFL_Valuation])
-            tmp_value = tmp_value[:,tmp_value[1,:].argsort()]
-            prob = np.exp(args.alpha2*tmp_value[1,delete_num:])
-            prob = prob/np.sum(prob)
-            sel1 = np.random.choice(np.array(tmp_value[0,delete_num:],dtype=np.int64),sel_num,replace=False,p=prob)
-            remain = set(np.arange(args.num_users))-set(sel1)
-            sel2 = np.random.choice(list(remain),m-sel_num,replace = False)
-            idxs_users = np.append(sel1,sel2)
-
+            idxs_users = select_afl(args, m, AFL_Valuation)
         elif args.power_d:
-            # use power_d algorithm
-            A = np.random.choice(range(args.num_users), args.d, replace=False,p=weights)
-            idxs_users = A[np.argsort(np.array(gt_global_losses[-1])[A])[-m:]]
+            idxs_users = select_powd(args, m, weights, gt_global_losses)
         elif not args.gpr_selection or gpr_idxs_users is None:
-            # random selection
-            idxs_users = np.random.choice(range(args.num_users), m, replace=False)
+            idxs_users = select_random(args, m)
         else:
             # FedGP
             idxs_users = copy.deepcopy(gpr_idxs_users)
@@ -230,32 +204,9 @@ def oneseed_experiment(args, seed, file_name):
         # train and exploit GPR
         if args.gpr:
             if epoch<=args.warmup and epoch>=args.gpr_begin:# warm-up
-                gpr.update_loss(np.concatenate([np.expand_dims(list(range(args.num_users)),1),
-                                                np.expand_dims(np.array(gt_global_losses[-1]),1)],1))
-                epoch_gpr_data = np.concatenate([np.expand_dims(list(range(args.num_users)),1),
-                                                np.expand_dims(np.array(gt_global_losses[-1])-np.array(gt_global_losses[-2]),1),
-                                                np.ones([args.num_users,1])],1)
-                gpr_data.append(epoch_gpr_data)
-                print("Training GPR")
-                TrainGPR(gpr,gpr_data[max([(epoch-args.gpr_begin-args.group_size+1),0]):epoch-args.gpr_begin+1],
-                        args.train_method,lr = 1e-2,llr = 0.0,gamma = args.GPR_gamma,max_epoches=args.GPR_Epoch+50,schedule_lr=False,verbose=args.verbose)
-
+                gpr_warmup(args, epoch, gpr, gt_global_losses, gpr_data)
             elif epoch>args.warmup and epoch%args.GPR_interval==0:# normal and optimization round
-                gpr.update_loss(np.concatenate([np.expand_dims(list(range(args.num_users)),1),
-                                                np.expand_dims(np.array(gt_global_losses[-1]),1)],1))
-                gpr.Reset_Discount()
-                print("Training with Random Selection For GPR Training:")
-                random_idxs_users = np.random.choice(range(args.num_users), m, replace=False)
-                gpr_acc,gpr_loss = train_federated_learning(args,epoch,
-                                    copy.deepcopy(global_model),random_idxs_users,train_dataset,user_groups)
-                epoch_gpr_data = np.concatenate([np.expand_dims(list(range(args.num_users)),1),
-                                                np.expand_dims(np.array(gpr_loss)-np.array(gt_global_losses[-1]),1),
-                                                np.ones([args.num_users,1])],1)
-                gpr_data.append(epoch_gpr_data)
-                print("Training GPR")
-                TrainGPR(gpr,gpr_data[-ceil(args.group_size/args.GPR_interval):],
-                        args.train_method,lr = 1e-2,llr = 0.0,gamma = args.GPR_gamma**args.GPR_interval,max_epoches=args.GPR_Epoch,schedule_lr=False,verbose=args.verbose)
-            
+                gpr_optimal(args, epoch, gpr, m, global_model, train_dataset, user_groups, gt_global_losses, gpr_data) 
             else:# normal and not optimization round
                 gpr.update_loss(np.concatenate([np.expand_dims(idxs_users,1),
                                             np.expand_dims(epoch_global_losses,1)],1))
@@ -308,6 +259,7 @@ def oneseed_experiment(args, seed, file_name):
         with open(file_name+'/MVN/{}/Sigma.pkl'.format(seed), 'wb') as f:
             pickle.dump([sigma,sigma_gt],f)
 
+
 def main(args):
     os.environ["OUTDATED_IGNORE"]='1'
     torch.multiprocessing.set_start_method('spawn')
@@ -322,6 +274,7 @@ def main(args):
     for seed in gargs.seed:
         args = copy.deepcopy(gargs) # recover the args
         oneseed_experiment(args, seed, file_name)
+
 
 if __name__ == '__main__':
     args = args_parser()
