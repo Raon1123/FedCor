@@ -40,7 +40,6 @@ def oneseed_experiment(args, seed, file_name):
 
     # load dataset and user groups
     train_dataset, test_dataset, user_groups, _, weights = get_dataset(args,seed)
-    # weights /=np.sum(weights)
     if seed is not None:
         setup_seed(seed)
     
@@ -291,7 +290,6 @@ def main(args):
     for seed in gargs.seed:
         args = copy.deepcopy(gargs) # recover the args
         oneseed_experiment(args, seed, file_name)
-
 
 if __name__ == '__main__':
     args = args_parser()

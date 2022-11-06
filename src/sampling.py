@@ -316,6 +316,7 @@ def shakespeare(data_dir,spc,rs):
         user_groups=new_user_groups
     return train_dataset,test_dataset,user_groups
 
+
 def sent140(data_dir,spc,rs):
     emb_arr,indd,_ = get_word_emb_arr(data_dir+'embs.json')
     trainx = torch.tensor([], dtype = torch.uint8)
@@ -376,6 +377,7 @@ def sent140(data_dir,spc,rs):
             i+=1
         user_groups=new_user_groups
     return train_dataset,test_dataset,user_groups
+
 
 if __name__ == '__main__':
     dataset_train = datasets.CIFAR10('./data/cifar/', train=True, download=True,
