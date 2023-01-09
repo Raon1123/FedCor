@@ -235,7 +235,7 @@ def get_cifar10(args, rs):
 
 def get_cifar10_feature(args, rs):
     args.num_classes = 10
-    data_dir = '/home/mlv/datasets/DataCIFAR10/' # FIXIT
+    data_dir = '/home/ayp/datasets/DataCIFAR10/' # FIXIT
     trn_name = 'CIFAR10Trn.mat'
     mat_path = os.path.join(data_dir, trn_name)
     mat = io.loadmat(mat_path)
@@ -367,19 +367,24 @@ def get_last_param(model):
 
 if __name__ == "__main__":
     from options import args_parser
-    import matplotlib.pyplot as plt
-    ALL_LETTERS = np.array(list("\n !\"&'(),-.0123456789:;>?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]abcdefghijklmnopqrstuvwxyz}"))
     args = args_parser()
-    args.dataset = 'sent'
-    args.shards_per_client=1
+    args.dataset = 'cifar'
+    args.alpha=0.2
     print(args.dataset)
     train_dataset, test_dataset, user_groups, user_groups_test,weights = get_dataset(args)
     print(len(train_dataset))
     print(len(test_dataset))
+    data_len = 0
+    data_list = []
+    for idx, data in user_groups.items():
+        data_list = data_list + list(data)
+        data_len += len(data)
+
+    datas = set(data_list)
+    print(len(datas))
+    print(data_len)
     # print(train_dataset[100][0].max())
     # print(''.join(ALL_LETTERS[train_dataset[0][0].numpy()].tolist()))
     # print(''.join(ALL_LETTERS[train_dataset[0][1].numpy()].tolist()))
     print(args.num_users)
-    plt.hist(weights,bins=20)
-    plt.show()
     

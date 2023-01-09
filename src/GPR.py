@@ -174,52 +174,10 @@ class GPR(torch.nn.Module):
             return None
         else:
             Sigma = self.Covariance()
-            if verbose:
-                y_major_locator = plt.MultipleLocator(0.5)
-                plt.figure(figsize=(8,8))
-                mu = self.mu
-                std = torch.sqrt(torch.diagonal(Sigma)).detach()
-                plt.plot(range(len(mu)),mu.numpy(),'b-')
-                plt.fill_between(range(len(mu)),mu.numpy()-std.numpy(),mu.numpy()+std.numpy(),alpha=0.3)
-                plt.ylabel('Predictive Loss Change',fontsize=26)
-                plt.xlabel('Client Index',fontsize=26)
-                plt.tick_params(labelsize=20)
-                plt.gca().yaxis.set_major_locator(y_major_locator)
             remain_clients = list(range(self.num_users))
             selected_clients = []
             for i in range(number):
-                if verbose:
-                    comp_idx,_,comp_tld,comp_ld = max_loss_decrease_client(np.random.choice(remain_clients,1),Sigma,loss_power,discount_method,weights)
-                    plt.arrow(comp_idx,mu[comp_idx].item(),0,-std[comp_idx].item(),length_includes_head=True,width = 0.1,head_width = 0.3,head_length = 0.1,ec = 'k',fc = 'k')
-                    plt.plot(comp_idx,mu[comp_idx].item()-std[comp_idx].item(),'kx',markersize = 26)
-                    comp_mu = mu+comp_ld
-                    plt.plot(range(len(comp_mu)),comp_mu.numpy(),'k-',label='Selection:{}, Mean:{:.3f}'.format(comp_idx,np.mean(comp_mu.numpy())))
-                    #plt.plot(range(len(mu)),np.ones(len(mu))*np.mean(mu.numpy()),'b:')
-                    #plt.plot(range(len(comp_mu)),np.ones(len(comp_mu))*np.mean(comp_mu.numpy()),'k:')
-                    print('compared loss decrease:',comp_tld)
                 idx,Sigma,total_loss_decrease,loss_decrease = max_loss_decrease_client(remain_clients,Sigma,loss_power,discount_method,weights)
-                if verbose:
-                    plt.arrow(idx,mu[idx].item(),0,-std[idx].item(),length_includes_head=True,width = 0.1,head_width = 0.3,head_length = 0.1,ec = 'r',fc = 'r')
-                    plt.plot(idx,mu[idx].item()-std[idx].item(),'rx',markersize = 26)
-                    std = torch.sqrt(torch.diagonal(Sigma)).detach()
-                    mu = mu+loss_decrease
-                    plt.plot(range(len(mu)),mu.numpy(),'r-',label='Selection:{}, Mean:{:.3f}'.format(idx,np.mean(mu.numpy())))
-                    plt.legend(fontsize=26,loc='upper center')
-                    #plt.plot(range(len(mu)),np.ones(len(mu))*np.mean(mu.numpy()),'r:')
-                    plt.tight_layout()
-                    # plt.legend(loc = 'lower center',ncol=3, borderaxespad=0.,fontsize = 20)
-                    # plt.savefig(save_path+'/test_accuracy.png')
-                    plt.figure(figsize=(8,8))
-                    plt.plot(range(len(mu)),mu.numpy(),'b-')
-                    plt.fill_between(range(len(mu)),mu.numpy()-std.numpy(),mu.numpy()+std.numpy(),alpha=0.3)
-                    for u in selected_clients:
-                        plt.plot(u,mu[u].item(),'rx',markersize = 26)
-                    plt.plot(idx,mu[idx].item(),'rx',markersize = 26)
-                    plt.ylabel('Predictive Loss Change',fontsize=26)
-                    plt.xlabel('Client Index',fontsize=26)
-                    plt.gca().yaxis.set_major_locator(y_major_locator)
-                    plt.tick_params(labelsize=20)
-                    print('loss decrease:',total_loss_decrease)
                 if Dynamic and -total_loss_decrease<Dynamic_TH:
                     break
                 selected_clients.append(idx)
@@ -354,7 +312,6 @@ class Poly_Kernel(torch.nn.Module):
             return torch.pow(k,self.order)
 
 
-
 class Kernel_GPR(GPR):
     """
     A GPR class with covariance defined by a kernel function
@@ -424,8 +381,6 @@ class Kernel_GPR(GPR):
         return proj_parameters,sigma_parameters
 
 
-
-
 class Matrix_GPR(GPR):
     """
     A GPR class with covariance defined by a positive definite matrix Sigma
@@ -485,8 +440,6 @@ class Matrix_GPR(GPR):
         matrix_parameters = [self.Lower,self.Diagonal]
         sigma_parameters = [self.noise,]
         return matrix_parameters,sigma_parameters
-
-        
 
 
 if __name__=='__main__':
