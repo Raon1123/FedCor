@@ -176,15 +176,14 @@ def oneseed_experiment(args, seed, file_name):
         pickle.dump([train_loss, train_accuracy,chosen_clients,
                     weights,None if not args.gpr else gpr.state_dict(),
                     gt_global_losses,test_accuracy], f)
-    
-    if args.mvnt:
-        with open(file_name+'/MVN/{}/Sigma.pkl'.format(seed), 'wb') as f:
-            pickle.dump([sigma,sigma_gt],f)
 
 
-def one_epoch(epoch, global_model, dataset, 
-    logging, experiments, acs,
-    seed):
+def one_epoch(epoch, 
+    global_model, 
+    dataset, 
+    logging, 
+    experiments, 
+    acs):
 
     epoch_global_losses = []
     epoch_local_losses = []
@@ -222,11 +221,6 @@ def one_epoch(epoch, global_model, dataset,
     if args.dataset=='cifar' or epoch in args.schedule:
         args.lr *= args.lr_decay
 
-    """
-    if gpr_idxs_users is not None and not args.gpr_selection:
-        gpr_test_offpolicy(args, global_model, weights, epoch, gpr_idxs_users, train_dataset, user_groups, 
-            gt_global_losses, gpr, offpolicy_losses, gpr_loss_decrease, gpr_acc_improve, train_accuracy)
-    """
     m = max(int(args.frac * args.num_users), 1)
 
     # client selection
@@ -302,13 +296,6 @@ def one_epoch(epoch, global_model, dataset,
     gt_global_losses.append(list_loss)
     train_accuracy.append(sum(list_acc)/len(list_acc))
 
-    # calculate the advantage in off-policy
-    """
-    if gpr_idxs_users is not None and not args.gpr_selection:
-        rand_loss_decrease.append(np.sum((np.array(gt_global_losses[-1])-np.array(gt_global_losses[-2]))*weights))
-        rand_acc_improve.append(train_accuracy[-1]-train_accuracy[-2])
-        print("Advantage:",gpr_loss_decrease[-1]-rand_loss_decrease[-1])
-    """
     # test prediction accuracy of GP model
     if args.gpr and epoch>args.warmup:
         test_idx = np.random.choice(range(args.num_users), m, replace=False)
